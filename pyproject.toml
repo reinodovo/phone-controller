@@ -1,0 +1,21 @@
+[project]
+name = "phone-controller"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["websockets>=14", "structlog>=24", "pillow>=10", "adbutils>=2.8", "uiautomator2>=3.5"]
+
+[dependency-groups]
+dev = ["phone-sdk"]
+
+[tool.uv.workspace]
+members = ["sdk"]
+
+[tool.uv.sources]
+phone-sdk = { workspace = true }
+
+[tool.uv.build-backend]
+module-name = "controller"
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"

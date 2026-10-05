@@ -1,0 +1,98 @@
+# Phone Controller
+
+Lets any service control an Android phone over a websocket and records the session.
+
+- **controller** (`src/controller`): owns the phone through an adb server, hands out exclusive sessions, runs actions, records every session and serves a viewer.
+- **SDK** (import name `phone`): the library services use to talk to the controller.
+
+```python
+import phone
+
+with phone.session("my-service") as p:
+    p.tap(360, 740)
+```
+
+## Sessions
+
+- Only one session holds the phone at a time and they are enqueued.
+- A session ends when the client closes the `with` block or disconnects.
+- Every session **starts** with the phone unlocked and in the home screen.
+- Every session **ends** with a force-stop of every app the session opened (plus the app in front at the time of session close), going home and locking the phone.
+
+## Actions
+
+| SDK | What it does |
+|---|---|
+| `p.open_app(package, activity=None)` | starts an app (its launcher activity if none is given) |
+| `p.close_app(package)` | force-stops an app |
+| `p.tap(x, y)` | taps a point |
+| `p.tap_element(timeout=10, **selector)` | waits for an element and taps its center; returns the element |
+| `p.type(text)` | types ASCII text |
+| `p.swipe(x1, y1, x2, y2, duration=0.3)` | swipes |
+| `p.back()`, `p.home()` | presses Back / Home |
+| `p.unlock()`, `p.lock()` | wakes and unlocks / turns the screen off (not needed at the start and end of sessions) |
+| `p.dump()` | the screen's elements: `{package, activity, pid, elements: [{text, id, desc, class, package, clickable, bounds}]}` |
+| `p.wait_for({name: selector, ...}, timeout=15)` | waits until any selector matches; returns `{matched: name or None, element}` |
+| `p.current_app()` | `{package, activity, pid}` of the app in front |
+| `p.is_playing()` | whether the app in front is playing media |
+
+Selectors are dicts:
+
+| Key | Matches |
+|---|---|
+| `id` | resource id, full (`com.app:id/x`) or short (`x`) |
+| `text`, `text_contains`, `text_starts`, `text_matches` | element text: exact, substring, prefix, regex |
+| `desc`, `desc_contains`, `desc_starts`, `desc_matches` | content description, likewise |
+| `class`, `package`, `clickable` | element class, owning app, clickability |
+| `activity`, `app` | (in `wait_for`) the activity / package in front |
+
+A failed action raises `phone.PhoneError`. If a Play Store payment screen shows up after an action, the controller presses Back and fails that action.
+
+## Recording and viewer
+
+Every session is stored under `$PHONE_CONTROLLER_DATA/sessions/<session id>/`: `session.json`, `steps.jsonl` (one line per action) and images:
+
+- before `tap`, `tap_element` and `swipe`: a screenshot with the target marked, or a layout drawn from a UI dump when the screen blocks screenshots
+- for `dump`: the XML plus the dump drawn over a screenshot (or on its own when screenshots are blocked)
+
+The viewer is served on the controller's port: `/` lists sessions, `/sessions/<id>` shows a session's steps and images.
+
+## Running
+
+Needs an adb server on `localhost:5037` with the phone connected and authorized (USB debugging).
+
+```bash
+uv sync                                              # .venv with the controller and the SDK
+uv run python -m controller
+uv run python examples/session.py                   # in another terminal
+```
+
+| Variable | Default | Used by |
+|---|---|---|
+| `PHONE_CONTROLLER_HOST` | `localhost` | controller: comma-separated addresses to listen on |
+| `PHONE_CONTROLLER_PORT` | `8765` | controller: websocket and viewer port |
+| `PHONE_CONTROLLER_DATA` | `data` (`/data` in the image) | controller: where sessions are stored |
+| `PHONE_CONTROLLER_RETENTION_DAYS` | `14` | controller: sessions older than this are deleted (checked hourly; `0` keeps all) |
+| `PHONE_SERIAL` | first connected non-emulator device | controller: which phone to use |
+| `LOG_FORMAT` | `console` on a terminal, `json` otherwise | controller: log output |
+| `PHONE_CONTROLLER_URL` | `ws://localhost:8765` | SDK: controller to connect to |
+
+Install only the SDK in another project:
+
+```bash
+uv add "phone-sdk @ git+https://github.com/reinodovo/phone-controller#subdirectory=sdk"
+```
+
+## Images
+
+- `ghcr.io/reinodovo/phone-controller`: the controller
+- `ghcr.io/reinodovo/adb-server`: an adb server listening on `localhost:5037`
+
+Both are meant for host networking on the machine the phone is plugged into. The adb server needs `privileged: true`, `/dev/bus/usb` and the authorized adb key mounted at `/root/.android` (`adbkey`, `adbkey.pub`).
+
+## Development
+
+```bash
+uv sync
+uvx ruff check && uvx ruff format
+```

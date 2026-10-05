@@ -1,0 +1,8 @@
+.venv
+data
+sdk/src
+examples
+adb
+.github
+**/__pycache__
+*.egg-info
