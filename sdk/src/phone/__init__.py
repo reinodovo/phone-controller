@@ -3,6 +3,7 @@ import logging
 import os
 from contextlib import contextmanager
 
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 log = logging.getLogger("phone")
@@ -14,19 +15,29 @@ class PhoneError(Exception):
 
 
 class Session:
-    def __init__(self, ws, session_id):
+    def __init__(self, ws, session_id, url):
         self._ws = ws
         self.id = session_id
+        self.url = url
         self._next_id = 0
 
     def call(self, action, **args):
         self._next_id += 1
-        self._ws.send(
-            json.dumps(
-                {"type": "call", "id": self._next_id, "action": action, "args": args}
+        try:
+            self._ws.send(
+                json.dumps(
+                    {
+                        "type": "call",
+                        "id": self._next_id,
+                        "action": action,
+                        "args": args,
+                    }
+                )
             )
-        )
-        reply = json.loads(self._ws.recv())
+            reply = json.loads(self._ws.recv())
+        except ConnectionClosed as e:
+            reason = e.rcvd.reason if e.rcvd and e.rcvd.reason else "connection lost"
+            raise PhoneError(f"{action}: session closed ({reason})") from e
         if not reply["ok"]:
             raise PhoneError(f"{action}: {reply['error']}")
         return reply.get("value")
@@ -70,14 +81,17 @@ class Session:
     def wait_for(self, selectors, timeout=15):
         return self.call("wait_for", selectors=selectors, timeout=timeout)
 
+    def wait_gone(self, timeout=15, **selector):
+        return self.call("wait_gone", selector=selector, timeout=timeout)
+
     def tap_element(self, timeout=10, **selector):
         return self.call("tap_element", selector=selector, timeout=timeout)
 
 
 @contextmanager
-def session(holder, url=DEFAULT_URL):
+def session(holder, url=DEFAULT_URL, debug=False):
     with connect(url) as ws:
-        ws.send(json.dumps({"type": "open", "holder": holder}))
+        ws.send(json.dumps({"type": "open", "holder": holder, "debug": debug}))
         while True:
             msg = json.loads(ws.recv())
             if msg["type"] == "granted":
@@ -85,4 +99,4 @@ def session(holder, url=DEFAULT_URL):
             if msg["type"] == "error":
                 raise PhoneError(msg["error"])
             log.info("phone busy, position %d in queue", msg["position"])
-        yield Session(ws, msg["session"])
+        yield Session(ws, msg["session"], msg["url"])

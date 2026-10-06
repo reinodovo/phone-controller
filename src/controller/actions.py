@@ -55,10 +55,10 @@ def is_playing():
     )
 
 
-def wait_for(selectors, timeout=15, interval=0.5):
+def wait_for(selectors, timeout=15, interval=0.5, snapshot=screen.snapshot):
     deadline = time.monotonic() + timeout
     while True:
-        _, current = screen.snapshot()
+        _, current = snapshot()
         for name, selector in selectors.items():
             element = screen.find(current, selector)
             if element is not None:
@@ -68,10 +68,21 @@ def wait_for(selectors, timeout=15, interval=0.5):
         time.sleep(interval)
 
 
-def locate(selector, timeout=10, interval=0.5):
+def wait_gone(selector, timeout=15, interval=0.5, snapshot=screen.snapshot):
     deadline = time.monotonic() + timeout
     while True:
-        xml, current = screen.snapshot()
+        _, current = snapshot()
+        if screen.find(current, selector) is None:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(interval)
+
+
+def locate(selector, timeout=10, interval=0.5, snapshot=screen.snapshot):
+    deadline = time.monotonic() + timeout
+    while True:
+        xml, current = snapshot()
         element = screen.find(current, selector)
         if element:
             return xml, element
@@ -128,6 +139,7 @@ ACTIONS = {
     "current_app": current_app,
     "is_playing": is_playing,
     "wait_for": wait_for,
+    "wait_gone": wait_gone,
     "tap": tap,
     "type": type_text,
     "open_app": open_app,

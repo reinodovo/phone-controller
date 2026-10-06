@@ -15,7 +15,7 @@ def now():
 
 
 class SessionRecord:
-    def __init__(self, session_id, holder, waited):
+    def __init__(self, session_id, holder, waited, debug=False):
         self.dir = SESSIONS_DIR / session_id
         self.dir.mkdir(parents=True)
         self.meta = {
@@ -23,7 +23,9 @@ class SessionRecord:
             "holder": holder,
             "granted_at": now(),
             "waited": waited,
+            "debug": debug,
             "actions": 0,
+            "steps": 0,
             "errors": 0,
             "status": "running",
         }
@@ -32,17 +34,19 @@ class SessionRecord:
     def save(self):
         (self.dir / "session.json").write_text(json.dumps(self.meta))
 
-    def next_step(self):
-        self.meta["actions"] += 1
-        return self.meta["actions"]
+    def next_step(self, user=False):
+        if user:
+            self.meta["actions"] += 1
+        self.meta["steps"] += 1
+        return self.meta["steps"]
 
     def save_image(self, n, name, image):
-        filename = f"{n:02d}_{name}.png"
+        filename = f"{n:03d}_{name}.png"
         image.save(self.dir / filename)
         return filename
 
     def save_text(self, n, name, text, extension):
-        filename = f"{n:02d}_{name}.{extension}"
+        filename = f"{n:03d}_{name}.{extension}"
         (self.dir / filename).write_text(text)
         return filename
 
@@ -53,8 +57,10 @@ class SessionRecord:
             f.write(json.dumps(step) + "\n")
         self.save()
 
-    def close(self, duration):
-        self.meta.update(closed_at=now(), duration=duration, status="closed")
+    def close(self, duration, reason=None):
+        self.meta.update(
+            closed_at=now(), duration=duration, status="closed", closed_reason=reason
+        )
         self.save()
 
 
@@ -96,6 +102,7 @@ def load_session(session_id):
     steps = []
     if steps_file.exists():
         steps = [json.loads(line) for line in steps_file.read_text().splitlines()]
+        steps.sort(key=lambda step: step["n"])
     return meta, steps
 
 

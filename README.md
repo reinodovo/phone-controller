@@ -9,13 +9,15 @@ Lets any service control an Android phone over a websocket and records the sessi
 import phone
 
 with phone.session("my-service") as p:
+    print(p.url)  # the session's page in the viewer
     p.tap(360, 740)
 ```
 
 ## Sessions
 
 - Only one session holds the phone at a time and they are enqueued.
-- A session ends when the client closes the `with` block or disconnects.
+- A session ends when the client closes the `with` block or disconnects, or after 60s without a call
+  (time spent running a call doesn't count). `phone.session(..., debug=True)` turns the idle timeout off.
 - Every session **starts** with the phone unlocked and in the home screen.
 - Every session **ends** with a force-stop of every app the session opened (plus the app in front at the time of session close), going home and locking the phone.
 
@@ -33,6 +35,7 @@ with phone.session("my-service") as p:
 | `p.unlock()`, `p.lock()` | wakes and unlocks / turns the screen off (not needed at the start and end of sessions) |
 | `p.dump()` | the screen's elements: `{package, activity, pid, elements: [{text, id, desc, class, package, clickable, bounds}]}` |
 | `p.wait_for({name: selector, ...}, timeout=15)` | waits until any selector matches; returns `{matched: name or None, element}` |
+| `p.wait_gone(timeout=15, **selector)` | waits until nothing matches the selector; returns whether it went away |
 | `p.current_app()` | `{package, activity, pid}` of the app in front |
 | `p.is_playing()` | whether the app in front is playing media |
 
@@ -50,12 +53,14 @@ A failed action raises `phone.PhoneError`. If a Play Store payment screen shows 
 
 ## Recording and viewer
 
-Every session is stored under `$PHONE_CONTROLLER_DATA/sessions/<session id>/`: `session.json`, `steps.jsonl` (one line per action) and images:
+Every session is stored under `$PHONE_CONTROLLER_DATA/sessions/<session id>/`: `session.json`, `steps.jsonl` (one line per step) and images:
 
 - before `tap`, `tap_element` and `swipe`: a screenshot with the target marked, or a layout drawn from a UI dump when the screen blocks screenshots
 - for `dump`: the XML plus the dump drawn over a screenshot (or on its own when screenshots are blocked)
 
-The viewer is served on the controller's port: `/` lists sessions, `/sessions/<id>` shows a session's steps and images.
+Steps are either `user` (the client's calls) or `internal` (calls the controller makes itself, linked to the user step that caused them): every dump taken while `tap_element`, `wait_for` and `wait_gone` poll the screen (drawn as a layout only, without a screenshot), the payment check after each action, and the unlock and clean-up around the session.
+
+The viewer is served on the controller's port: `/` lists sessions, `/sessions/<id>` shows a session's steps and images (`?steps=user` hides internal steps).
 
 ## Running
 
@@ -71,6 +76,8 @@ uv run python examples/session.py                   # in another terminal
 |---|---|---|
 | `PHONE_CONTROLLER_HOST` | `localhost` | controller: comma-separated addresses to listen on |
 | `PHONE_CONTROLLER_PORT` | `8765` | controller: websocket and viewer port |
+| `PHONE_CONTROLLER_PUBLIC_URL` | `http://localhost:<port>` | controller: viewer address used in the session links given to clients |
+| `PHONE_CONTROLLER_IDLE_TIMEOUT` | `60` | controller: seconds without a call before a session is closed |
 | `PHONE_CONTROLLER_DATA` | `data` (`/data` in the image) | controller: where sessions are stored |
 | `PHONE_CONTROLLER_RETENTION_DAYS` | `14` | controller: sessions older than this are deleted (checked hourly; `0` keeps all) |
 | `PHONE_SERIAL` | first connected non-emulator device | controller: which phone to use |
