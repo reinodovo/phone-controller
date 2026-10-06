@@ -2,14 +2,30 @@ name: images
 
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Tag matches the package versions
+      run: |
+        tag="${GITHUB_REF_NAME#v}"
+        for file in pyproject.toml sdk/pyproject.toml; do
+          version=$(grep -m1 '^version = ' "$file" | cut -d'"' -f2)
+          if [ "$version" != "$tag" ]; then
+            echo "::error file=$file::version $version doesn't match tag $GITHUB_REF_NAME"
+            exit 1
+          fi
+        done
+
   build:
+    needs: version
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,8 +44,9 @@ jobs:
       with:
         images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
         tags: |
-          type=sha,format=short
-          type=raw,value=latest
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
     - uses: docker/build-push-action@v6
       with:
         context: ${{ matrix.context }}

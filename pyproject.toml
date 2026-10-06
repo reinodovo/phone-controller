@@ -1,6 +1,6 @@
 [project]
 name = "phone-controller"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = ["websockets>=14", "structlog>=24", "pillow>=10", "adbutils>=2.8", "uiautomator2>=3.5"]
 

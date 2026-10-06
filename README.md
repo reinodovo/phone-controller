@@ -84,16 +84,28 @@ uv run python examples/session.py                   # in another terminal
 | `LOG_FORMAT` | `console` on a terminal, `json` otherwise | controller: log output |
 | `PHONE_CONTROLLER_URL` | `ws://localhost:8765` | SDK: controller to connect to |
 
-Install only the SDK in another project:
+Install only the SDK in another project, pinned to a release:
 
 ```bash
-uv add "phone-sdk @ git+https://github.com/reinodovo/phone-controller#subdirectory=sdk"
+uv add "phone-sdk @ git+https://github.com/reinodovo/phone-controller@v0.2.0#subdirectory=sdk"
+```
+
+## Versions
+
+The controller and the SDK share one version (`version` in `pyproject.toml` and `sdk/pyproject.toml`). When a session opens, the SDK sends its version and the controller sends its own back: they only work together within the same series, which is the major version from 1.0 on and the minor version before that (`0.2.x` works with `0.2.x`, `1.x` with `1.x`). The controller refuses an SDK of another series (or one that doesn't send a version) before queueing it. Start a new series (bump the minor while on 0.x, the major after) when a change to the protocol breaks older SDKs or controllers.
+
+To release, set the same version in both `pyproject.toml` files, run `uv lock`, commit, then tag and push:
+
+```bash
+git tag v0.2.1 && git push origin v0.2.1
 ```
 
 ## Images
 
 - `ghcr.io/reinodovo/phone-controller`: the controller
 - `ghcr.io/reinodovo/adb-server`: an adb server listening on `localhost:5037`
+
+Both are built from version tags (`v0.2.1`) and tagged with the version and its minor series (`0.2.1`, `0.2`); from 1.0 on also the major (`1`). The build fails if the tag doesn't match the versions in `pyproject.toml`.
 
 Both are meant for host networking on the machine the phone is plugged into. The adb server needs `privileged: true`, `/dev/bus/usb` and the authorized adb key mounted at `/root/.android` (`adbkey`, `adbkey.pub`).
 

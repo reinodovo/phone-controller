@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import importlib.metadata
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ from controller import actions, layout, screen, storage, viewer
 from controller.actions import ACTIONS, foreground_package, launcher_package
 from controller.device import capture_screen
 
+VERSION = importlib.metadata.version("phone-controller")
 HOSTS = os.environ.get("PHONE_CONTROLLER_HOST", "localhost").split(",")
 PORT = int(os.environ.get("PHONE_CONTROLLER_PORT", "8765"))
 PUBLIC_URL = os.environ.get("PHONE_CONTROLLER_PUBLIC_URL", f"http://localhost:{PORT}")
@@ -28,15 +30,30 @@ READ_ONLY = {"dump", "wait_for", "wait_gone", "current_app", "is_playing"}
 POLLING = {"wait_for", "wait_gone"}
 
 
+def series(version):
+    if not version:
+        return None
+    major, minor = version.split(".")[:2]
+    return f"0.{minor}" if major == "0" else major
+
+
 async def handle(ws):
     global waiting
     msg = json.loads(await ws.recv())
     holder = msg.get("holder", "?")
     debug = bool(msg.get("debug"))
+    sdk_version = msg.get("version")
+    if series(sdk_version) != series(VERSION):
+        error = f"SDK {sdk_version or 'without a version'} is incompatible with controller {VERSION}, use a {series(VERSION)}.x SDK"
+        log.warning("rejected session", holder=holder, sdk=sdk_version)
+        await ws.send(json.dumps({"type": "error", "error": error}))
+        return
     asked_at = time.monotonic()
     waiting += 1
     if phone_lock.locked():
-        await ws.send(json.dumps({"type": "waiting", "position": waiting}))
+        await ws.send(
+            json.dumps({"type": "waiting", "position": waiting, "version": VERSION})
+        )
     try:
         await phone_lock.acquire()
     finally:
@@ -61,7 +78,14 @@ async def handle(ws):
         await run_action(record, {"action": "home"}, {}, source="internal")
         url = f"{PUBLIC_URL}/sessions/{session_id}"
         await ws.send(
-            json.dumps({"type": "granted", "session": session_id, "url": url})
+            json.dumps(
+                {
+                    "type": "granted",
+                    "session": session_id,
+                    "url": url,
+                    "version": VERSION,
+                }
+            )
         )
         while True:
             try:
@@ -290,7 +314,7 @@ async def main():
             await stack.enter_async_context(
                 serve(handle, host, PORT, process_request=viewer.process_request)
             )
-        log.info("listening", hosts=HOSTS, port=PORT)
+        log.info("listening", hosts=HOSTS, port=PORT, version=VERSION)
         await prune_forever()
 
 

@@ -1,3 +1,4 @@
+import importlib.metadata
 import json
 import logging
 import os
@@ -8,6 +9,14 @@ from websockets.sync.client import connect
 
 log = logging.getLogger("phone")
 DEFAULT_URL = os.environ.get("PHONE_CONTROLLER_URL", "ws://localhost:8765")
+VERSION = importlib.metadata.version("phone-sdk")
+
+
+def series(version):
+    if not version:
+        return None
+    major, minor = version.split(".")[:2]
+    return f"0.{minor}" if major == "0" else major
 
 
 class PhoneError(Exception):
@@ -91,12 +100,21 @@ class Session:
 @contextmanager
 def session(holder, url=DEFAULT_URL, debug=False):
     with connect(url) as ws:
-        ws.send(json.dumps({"type": "open", "holder": holder, "debug": debug}))
+        ws.send(
+            json.dumps(
+                {"type": "open", "holder": holder, "debug": debug, "version": VERSION}
+            )
+        )
         while True:
             msg = json.loads(ws.recv())
-            if msg["type"] == "granted":
-                break
             if msg["type"] == "error":
                 raise PhoneError(msg["error"])
+            controller = msg.get("version")
+            if not controller or series(controller) != series(VERSION):
+                raise PhoneError(
+                    f"controller {controller or 'without a version'} is incompatible with SDK {VERSION}"
+                )
+            if msg["type"] == "granted":
+                break
             log.info("phone busy, position %d in queue", msg["position"])
         yield Session(ws, msg["session"], msg["url"])
