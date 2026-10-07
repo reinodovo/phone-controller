@@ -326,7 +326,7 @@ wheels = [
 
 [[package]]
 name = "phone-controller"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "adbutils" },
@@ -355,7 +355,7 @@ dev = [{ name = "phone-sdk", editable = "sdk" }]
 
 [[package]]
 name = "phone-sdk"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "sdk" }
 dependencies = [
     { name = "websockets" },

@@ -49,7 +49,7 @@ Selectors are dicts:
 | `class`, `package`, `clickable` | element class, owning app, clickability |
 | `activity`, `app` | (in `wait_for`) the activity / package in front |
 
-A failed action raises `phone.PhoneError`. If a Play Store payment screen shows up after an action, the controller presses Back and fails that action.
+A failed action raises `phone.PhoneError`. With `PHONE_CONTROLLER_PAYMENT_CHECK` on, the controller also checks for a Play Store payment screen after each action, and if one shows up it presses Back and fails that action.
 
 ## Recording and viewer
 
@@ -58,7 +58,7 @@ Every session is stored under `$PHONE_CONTROLLER_DATA/sessions/<session id>/`: `
 - before `tap`, `tap_element` and `swipe`: a screenshot with the target marked, or a layout drawn from a UI dump when the screen blocks screenshots
 - for `dump`: the XML plus the dump drawn over a screenshot (or on its own when screenshots are blocked)
 
-Steps are either `user` (the client's calls) or `internal` (calls the controller makes itself, linked to the user step that caused them): every dump taken while `tap_element`, `wait_for` and `wait_gone` poll the screen (drawn as a layout only, without a screenshot), the payment check after each action, and the unlock and clean-up around the session.
+Steps are either `user` (the client's calls) or `internal` (calls the controller makes itself, linked to the user step that caused them): every dump taken while `tap_element`, `wait_for` and `wait_gone` poll the screen (drawn as a layout only, without a screenshot), the payment check after each action (when enabled), and the unlock and clean-up around the session.
 
 The viewer is served on the controller's port: `/` lists sessions, `/sessions/<id>` shows a session's steps and images (`?steps=user` hides internal steps).
 
@@ -78,6 +78,7 @@ uv run python examples/session.py                   # in another terminal
 | `PHONE_CONTROLLER_PORT` | `8765` | controller: websocket and viewer port |
 | `PHONE_CONTROLLER_PUBLIC_URL` | `http://localhost:<port>` | controller: viewer address used in the session links given to clients |
 | `PHONE_CONTROLLER_IDLE_TIMEOUT` | `60` | controller: seconds without a call before a session is closed |
+| `PHONE_CONTROLLER_PAYMENT_CHECK` | off | controller: `true` checks for a Play Store payment screen after each action, presses Back and fails the action |
 | `PHONE_CONTROLLER_DATA` | `data` (`/data` in the image) | controller: where sessions are stored |
 | `PHONE_CONTROLLER_RETENTION_DAYS` | `14` | controller: sessions older than this are deleted (checked hourly; `0` keeps all) |
 | `PHONE_SERIAL` | first connected non-emulator device | controller: which phone to use |

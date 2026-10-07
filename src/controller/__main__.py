@@ -21,6 +21,11 @@ HOSTS = os.environ.get("PHONE_CONTROLLER_HOST", "localhost").split(",")
 PORT = int(os.environ.get("PHONE_CONTROLLER_PORT", "8765"))
 PUBLIC_URL = os.environ.get("PHONE_CONTROLLER_PUBLIC_URL", f"http://localhost:{PORT}")
 IDLE_TIMEOUT = float(os.environ.get("PHONE_CONTROLLER_IDLE_TIMEOUT", "60"))
+PAYMENT_CHECK = os.environ.get("PHONE_CONTROLLER_PAYMENT_CHECK", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 log = structlog.get_logger("phone-controller")
 phone_lock = asyncio.Lock()
@@ -237,8 +242,10 @@ async def run_action(record, call, reply, source="user"):
                 )
             result = await asyncio.to_thread(action, **action_args)
             value = value if name == "tap_element" else result
-        if name not in READ_ONLY and await asyncio.to_thread(
-            internal.call, "payment_check", payment_screen
+        if (
+            PAYMENT_CHECK
+            and name not in READ_ONLY
+            and await asyncio.to_thread(internal.call, "payment_check", payment_screen)
         ):
             await asyncio.to_thread(internal.call, "back", actions.back)
             raise RuntimeError("Play Store payment screen appeared, pressed back")
