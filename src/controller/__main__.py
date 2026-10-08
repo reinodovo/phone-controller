@@ -133,7 +133,7 @@ async def clean_up(record, opened):
         launcher = await asyncio.to_thread(
             internal.call, "launcher_package", launcher_package
         )
-        if front not in {launcher, "com.android.systemui"}:
+        if front not in {None, launcher, "com.android.systemui"}:
             opened.add(front)
     except Exception as e:  # noqa: BLE001
         log.warning("could not read the app in front", error=str(e))

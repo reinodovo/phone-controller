@@ -3,9 +3,13 @@ import xml.etree.ElementTree as ET
 
 import uiautomator2
 
-from controller.device import device
+from controller.device import ADB_TIMEOUT, adb_shell, device
 
 BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
+TOP_RESUMED = re.compile(
+    r"topResumedActivity=ActivityRecord\{\S+ \S+ ([^\s/}]+)/([^\s}]+)"
+)
+RESUMED = re.compile(r"ResumedActivity: ?ActivityRecord\{\S+ \S+ ([^\s/}]+)/([^\s}]+)")
 _u2 = None
 
 
@@ -59,8 +63,18 @@ def screen_size(xml):
 
 
 def current_app():
-    app = device().app_current()
-    return {"package": app.package, "activity": app.activity, "pid": app.pid}
+    # adbutils' app_current falls back to `dumpsys activity top`, which takes seconds on recent Android
+    out = adb_shell("dumpsys", "activity", "activities")
+    m = TOP_RESUMED.search(out) or RESUMED.search(out)
+    if not m:
+        return {"package": None, "activity": None, "pid": None}
+    package, activity = m.groups()
+    pids = device().shell(["pidof", package], timeout=ADB_TIMEOUT).split()
+    return {
+        "package": package,
+        "activity": activity,
+        "pid": int(pids[0]) if pids else None,
+    }
 
 
 def snapshot():

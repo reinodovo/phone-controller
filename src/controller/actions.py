@@ -1,7 +1,7 @@
 import time
 
 from controller import screen
-from controller.device import adb_shell, device
+from controller.device import adb_shell
 
 
 def unlock():
@@ -14,7 +14,7 @@ def home():
 
 
 def foreground_package():
-    return device().app_current().package
+    return screen.current_app()["package"]
 
 
 def launcher_package():
@@ -47,7 +47,9 @@ def current_app():
 
 
 def is_playing():
-    pid = device().app_current().pid
+    pid = screen.current_app()["pid"]
+    if pid is None:
+        return False
     audio = adb_shell("dumpsys", "audio")
     return any(
         f"/{pid} " in line and "state:started" in line and "USAGE_MEDIA" in line
