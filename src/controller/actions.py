@@ -1,12 +1,43 @@
+import os
+import re
 import time
 
 from controller import screen
 from controller.device import adb_shell
 
+PASSWORD = os.environ.get("PHONE_PASSWORD")
+
+
+def keyguard():
+    policy = adb_shell("dumpsys", "window", "policy")
+    showing = re.search(r"mIsShowing=(true|false)", policy)
+    secure = re.search(r"\bsecure=(true|false)", policy)
+    return {
+        "showing": bool(showing) and showing[1] == "true",
+        "secure": bool(secure) and secure[1] == "true",
+    }
+
 
 def unlock():
     adb_shell("input", "keyevent", "KEYCODE_WAKEUP")
     adb_shell("wm", "dismiss-keyguard")
+    if not PASSWORD:
+        return
+    time.sleep(1)
+    state = keyguard()
+    if not (state["showing"] and state["secure"]):
+        return
+    try:
+        adb_shell("input", "text", PASSWORD.replace(" ", "%s"))
+        adb_shell("input", "keyevent", "KEYCODE_ENTER")
+    except RuntimeError:
+        raise RuntimeError("typing the unlock password failed") from None
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if not keyguard()["showing"]:
+            return
+        time.sleep(0.5)
+    raise RuntimeError("still locked after typing the password (wrong PHONE_PASSWORD?)")
 
 
 def home():

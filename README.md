@@ -81,6 +81,7 @@ uv run python examples/session.py                   # in another terminal
 | `PHONE_CONTROLLER_PAYMENT_CHECK` | off | controller: `true` checks for a Play Store payment screen after each action, presses Back and fails the action |
 | `PHONE_CONTROLLER_DATA` | `data` (`/data` in the image) | controller: where sessions are stored |
 | `PHONE_CONTROLLER_RETENTION_DAYS` | `14` | controller: sessions older than this are deleted (checked hourly; `0` keeps all) |
+| `PHONE_PASSWORD` | none | controller: the phone's lock screen password or PIN; typed (then Enter) when unlocking, only if a secure lock screen is showing |
 | `PHONE_SERIAL` | first connected non-emulator device | controller: which phone to use |
 | `LOG_FORMAT` | `console` on a terminal, `json` otherwise | controller: log output |
 | `PHONE_CONTROLLER_URL` | `ws://localhost:8765` | SDK: controller to connect to |
